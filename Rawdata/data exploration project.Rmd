@@ -1,0 +1,156 @@
+---
+title: "Data Exploration Project"
+author: "George T"
+date: "2/17/2022"
+output: html_document
+---
+# loading packages
+```{r}
+library(tidyverse)
+library(purrr)
+library(car)
+library(fmtr)
+```
+
+
+# reading in data files
+```{r}
+setwd("~/Downloads/Lab3_Rawdata")
+
+trends <- list.files(pattern = "trends_", full.names = TRUE) %>% 
+  lapply(read_csv) %>% 
+  bind_rows() 
+  
+scorecard <- read.csv("Most+Recent+Cohorts+(Scorecard+Elements).csv", header = TRUE)
+
+id_name_link <- read.csv("id_name_link.csv", header = TRUE)
+```
+
+```{r}
+id_name_link <- id_name_link%>%
+  group_by(schname)%>%
+  mutate(N = n())%>%
+  filter(N == 1)
+```
+
+
+# linking together the data
+```{r}
+trends_and_id_name <- left_join(x = id_name_link, y = trends, by = "schname")
+
+ourdata <- left_join(x = trends_and_id_name, y = scorecard, by = c("unitid" = "UNITID"))
+```
+
+
+# cleaning
+
+# remove schools with the same name
+```{r}
+ourdata_norepeat <- ourdata %>%
+  group_by(unitid) %>%
+  slice(1)
+```
+
+# filtering out colleges that don't predominantly grant bachelors degrees
+```{r}
+ourdata_norepeat <- ourdata_norepeat %>%
+  filter(PREDDEG == 3)
+```
+
+
+# Analysis
+
+
+# grouping by monthorweek
+```{r}
+month_or_week <- ourdata %>%
+  group_by(monthorweek) %>%
+  summarize(n = n())
+```
+
+# remove dates with NA
+```{r}
+month_or_week_clean <- na.omit(month_or_week, c("monthorweek"))
+```
+
+# dates before sept 15th
+```{r}
+month_or_week_clean$monthorweek
+before_sept <- month_or_week_clean$monthorweek[1:128]
+before_sept <- as.data.frame(before_sept)
+```
+# dates after sept 2015
+```{r}
+month_or_week_clean$monthorweek
+after_sept <- month_or_week_clean$monthorweek[129:158]
+after_sept <- as.data.frame(after_sept)
+```
+
+# creating binary variable where 0 is when the date is before september 2015, and 1 when it is after
+```{r}
+month_or_week_clean$monthorweek <- ifelse(month_or_week_clean$monthorweek %in% after_sept, 0, 1)
+
+```
+
+
+# defining low and high earning income
+
+```{r warning=FALSE}
+earnings <- ourdata_norepeat %>%
+  group_by(unitid, schname) %>%
+  summarize(mean(as.numeric(md_earn_wne_p10.REPORTED.EARNINGS))) %>%
+  na.omit(earnings, c("md_earn_wne_p10.REPORTED.EARNINGS"))
+```
+# finding mean and standard deviation of the data
+```{r warning=FALSE}
+mean_earnings <- mean(earnings$'mean(as.numeric(md_earn_wne_p10.REPORTED.EARNINGS))')
+stdev_earnings <- sd(earnings$'mean(as.numeric(md_earn_wne_p10.REPORTED.EARNINGS))')
+
+mean_earnings - stdev_earnings
+mean_earnings + stdev_earnings
+```
+# creating binary variables for high and low earnings based off +-  1 standard deviation away from the mean
+```{r}
+colnames(earnings)[3] <- "avg_earnings"
+
+earnings$high_income <- ifelse(earnings$'avg_earnings' >= 54141.91, 1, 0)
+earnings$low_income <- ifelse(earnings$'avg_earnings' <= 30516.52, 1, 0)
+```
+
+#TEST 1
+```{r}
+ourdatafinal <- ourdata_norepeat %>%
+  group_by(keynum) %>%
+  summarise(standardized_index = (index - mean(index)) / sd(index), schname, standardized_index, CONTROL, keyword, monthorweek, keynum, opeid)
+```
+
+
+# TEST 2
+```{r}
+ourdatafinal <- ourdata_norepeat %>%
+  group_by(keynum) %>%
+  summarise(sd_index = (index - mean(index)) / sd(index), schname, CONTROL, 
+            keyword, monthorweek, keynum, sd_index)
+```
+
+
+# TEST 3 standardizing the index variable for each term, subtract mean then divide by standard deviation 
+```{r}
+ourdatafinal <- ourdata %>%
+  group_by(schname, keyword) %>%
+  mutate(standardize_index = (index - mean(index)) / sd(index))
+
+ourdatafinal <- ourdatafinal %>%
+  relocate(standardize_index, .after = index)
+
+```
+
+
+# graphing
+
+```{r}
+
+```
+
+
+
